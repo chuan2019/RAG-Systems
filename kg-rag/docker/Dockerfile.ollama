@@ -1,0 +1,8 @@
+FROM ollama/ollama:latest
+
+# Start Ollama server in background and pull models
+RUN ollama serve & \
+    sleep  15 && \
+    ollama pull bge-m3:latest && \
+    ollama pull nomic-embed-text:latest && \
+    ollama pull llama3.2:latest

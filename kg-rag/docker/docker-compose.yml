@@ -1,0 +1,99 @@
+services:
+  memgraph-db:
+    image: memgraph/memgraph:latest
+    container_name: memgraph-db
+    ports:
+      - "7687:7687"  # Bolt protocol
+    environment:
+      - MEMGRAPH="--log-level=TRACE"
+    volumes:
+      - memgraph_data:/var/lib/memgraph
+      - memgraph_log:/var/log/memgraph
+      - memgraph_etc:/etc/memgraph
+    restart: unless-stopped
+    networks:
+      - kgrag_net
+
+  memgraph-lab:
+    image: memgraph/lab:latest
+    container_name: memgraph-lab
+    ports:
+      - "3000:3000"
+    environment:
+      - MEMGRAPH_HOST=memgraph-db
+      - MEMGRAPH_PORT=7687
+    depends_on:
+      - memgraph-db
+    restart: unless-stopped
+    networks:
+      - kgrag_net
+
+  neo4j:
+    image: neo4j:5.18.0
+    container_name: neo4j-single
+    ports:
+      - 7474:7474  # HTTP
+      - 7688:7687  # Bolt
+    environment:
+      NEO4J_AUTH: neo4j/testpass
+      NEO4J_dbms_memory_pagecache_size: 1G
+      NEO4J_dbms_memory_heap_initial__size: 1G
+      NEO4J_dbms_memory_heap_max__size: 2G
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      # APOC Configuration
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+    networks:
+      - kgrag_net
+
+  ollama:
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./models:/models
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kgrag_net
+    # GPU support (requires nvidia-docker)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+networks:
+  kgrag_net:
+    driver: bridge
+
+volumes:
+  memgraph_data:
+    driver: local
+  memgraph_log:
+    driver: local
+  memgraph_etc:
+    driver: local
+
+  neo4j_data:
+    driver: local
+
+  ollama_data:
+    driver: local
