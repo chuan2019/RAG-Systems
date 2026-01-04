@@ -51,9 +51,7 @@ services:
       - kgrag_net
 
   ollama:
-    build:
-      context: .
-      dockerfile: Dockerfile.ollama
+    image: ollama/ollama:latest
     container_name: ollama
     ports:
       - "11434:11434"
