@@ -1,46 +1,24 @@
 services:
-  memgraph-db:
-    image: memgraph/memgraph:latest
-    container_name: memgraph-db
+  memgraph:
+    image: memgraph/memgraph-platform:latest
+    container_name: memgraph-single
     ports:
-      - "7687:7687"  # Bolt protocol
-    command: 
-      - "--log-level=TRACE"
-      - "--auth-module-executable="
-      - "--auth-module-mappings="
-      - "--bolt-session-inactivity-timeout=0"
-      - "--storage-parallel-schema-recovery=false"
+      - "7687:7687"  # Bolt
+      - "7444:7444"  # HTTP
+      - "3000:3000"  # Memgraph Lab (web UI)
     volumes:
-      - ./volumes/memgraph/data:/var/lib/memgraph
+      - ./volumes/memgraph/lib:/var/lib/memgraph
       - ./volumes/memgraph/log:/var/log/memgraph
       - ./volumes/memgraph/etc:/etc/memgraph
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --host 127.0.0.1 --port 7687 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    networks:
-      - kgrag_net
-
-  memgraph-lab:
-    image: memgraph/lab:latest
-    container_name: memgraph-lab
-    ports:
-      - "3000:3000"
     environment:
-      - MEMGRAPH_HOST=memgraph-db
-      - MEMGRAPH_PORT=7687
-    depends_on:
-      - memgraph-db
+      - MEMGRAPH="--log-level=TRACE"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD-SHELL", "mg_console --query 'RETURN 1' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 40s
     networks:
       - kgrag_net
 
