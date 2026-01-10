@@ -3,6 +3,7 @@
 This directory contains Docker Compose configuration for running a complete Knowledge Graph RAG system with:
 - **MemGraph** - In-memory graph database with Lab UI
 - **Neo4j** - Popular graph database with APOC support
+- **Weaviate** - Vector database with Ollama integration
 - **Ollama** - Local LLM runtime with embedding models
 
 ## Quick Start
@@ -24,8 +25,11 @@ After starting with `make up`:
 |---------|------|-----|-------------|
 | **MemGraph Lab** | Web UI | http://localhost:3000 | - |
 | **MemGraph Bolt** | Protocol | bolt://localhost:7687 | - |
+| **MemGraph HTTP** | REST API | http://localhost:7444 | - |
 | **Neo4j Browser** | Web UI | http://localhost:7474 | neo4j/testpass |
 | **Neo4j Bolt** | Protocol | bolt://localhost:7688 | neo4j/testpass |
+| **Weaviate API** | REST API | http://localhost:8080 | - |
+| **Weaviate gRPC** | gRPC | localhost:50051 | - |
 | **Ollama API** | REST API | http://localhost:11434 | - |
 
 ## Available Commands
@@ -36,7 +40,7 @@ Run `make help` to see all commands. Key commands:
 make up              # Start all services
 make down            # Stop all services
 make status          # Check all services status
-make logs            # View all logs (or make logs SERVICE=ollama)
+make logs            # View all logs (or make logs SERVICE=weaviate)
 make restart         # Restart all services
 make clean           # Remove all containers and volumes
 make quickstart      # Start cluster + pull nomic model
@@ -67,6 +71,14 @@ make down-ollama     # Stop only Ollama
 make logs-ollama     # View Ollama logs
 make shell-ollama    # Open Ollama shell
 make list-models     # List installed models
+```
+
+**Weaviate:**
+```bash
+make up-weaviate     # Start only Weaviate
+make down-weaviate   # Stop only Weaviate
+make logs-weaviate   # View Weaviate logs
+make shell-weaviate  # Open Weaviate shell
 ```
 
 ## Ollama Embedding Models
@@ -142,6 +154,63 @@ graph = Neo4jGraph(
 # Run Cypher query
 result = graph.query("MATCH (n) RETURN n LIMIT 5")
 print(result)
+```
+
+### Using Weaviate with Ollama
+
+#### Basic Example
+
+```python
+import weaviate
+from weaviate.classes.init import Auth
+
+# Connect to Weaviate
+client = weaviate.connect_to_local(
+    host="localhost",
+    port=8080,
+    grpc_port=50051
+)
+
+# Check if ready
+print(client.is_ready())
+
+# Close connection
+client.close()
+```
+
+#### With LangChain
+
+```python
+from langchain_community.vectorstores import Weaviate
+from langchain_community.embeddings import OllamaEmbeddings
+import weaviate
+
+# Initialize embeddings
+embeddings = OllamaEmbeddings(
+    model="nomic-embed-text",
+    base_url="http://localhost:11434"
+)
+
+# Connect to Weaviate
+client = weaviate.connect_to_local(
+    host="localhost",
+    port=8080,
+    grpc_port=50051
+)
+
+# Create vector store
+vector_store = Weaviate(
+    client=client,
+    index_name="Documents",
+    text_key="text",
+    embedding=embeddings
+)
+
+# Add documents
+vector_store.add_texts(["Document 1", "Document 2"])
+
+# Query
+results = vector_store.similarity_search("query", k=3)
 ```
 
 ### Using Ollama for Embeddings
@@ -239,8 +308,9 @@ cp .env.example .env
 ```
 
 Key configurations:
-- **MemGraph**: Ports, log level
+- **MemGraph**: Ports (7687 Bolt, 7444 HTTP, 3000 Lab), log level
 - **Neo4j**: Authentication, memory settings, plugins
+- **Weaviate**: Ports (8080 HTTP, 50051 gRPC), Ollama integration
 - **Ollama**: Host, port, GPU settings
 
 ## GPU Support (Ollama)
@@ -274,6 +344,12 @@ Requires: `nvidia-docker` runtime installed.
 ### MemGraph
 - **Lab UI**: `http://localhost:3000`
 - **Bolt Protocol**: `bolt://localhost:7687`
+- **HTTP API**: `http://localhost:7444`
+
+### Weaviate
+- **REST API**: `http://localhost:8080`
+- **gRPC**: `localhost:50051`
+- **Ready Check**: `http://localhost:8080/v1/.well-known/ready`
 
 ## Troubleshooting
 
@@ -292,6 +368,9 @@ curl http://localhost:7474/
 
 # MemGraph
 curl http://localhost:3000/
+
+# Weaviate
+curl http://localhost:8080/v1/.well-known/ready
 ```
 
 ### View logs
@@ -331,18 +410,20 @@ make up
 
 ## Data Persistence
 
-All data is stored in Docker volumes:
+All data is stored in local volumes:
 
-- **MemGraph**: `memgraph_data`, `memgraph_log`, `memgraph_etc`
-- **Neo4j**: `neo4j_data`
-- **Ollama**: `ollama_data`
+- **MemGraph**: `./volumes/memgraph/lib`, `./volumes/memgraph/log`, `./volumes/memgraph/etc`
+- **Neo4j**: `./volumes/neo4j/data`
+- **Weaviate**: `./volumes/weaviate`
+- **Ollama**: `./volumes/ollama`
 
 ### Backup volumes
 ```bash
-docker volume ls | grep kgrag
-docker run --rm -v memgraph_data:/data -v $(pwd):/backup ubuntu tar czf /backup/memgraph_backup.tar.gz /data
-docker run --rm -v neo4j_data:/data -v $(pwd):/backup ubuntu tar czf /backup/neo4j_backup.tar.gz /data
-docker run --rm -v ollama_data:/data -v $(pwd):/backup ubuntu tar czf /backup/ollama_backup.tar.gz /data
+# Backup all data directories
+tar czf memgraph_backup.tar.gz volumes/memgraph/
+tar czf neo4j_backup.tar.gz volumes/neo4j/
+tar czf weaviate_backup.tar.gz volumes/weaviate/
+tar czf ollama_backup.tar.gz volumes/ollama/
 ```
 
 ## Additional Models
@@ -362,25 +443,26 @@ docker exec ollama ollama pull snowflake-arctic-embed
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│         KG-RAG Cluster (kgrag_net)          │
-├─────────────────────────────────────────────┤
-│                                             │
-│  ┌──────────────┐      ┌──────────────┐    │
-│  │  MemGraph    │      │    Neo4j     │    │
-│  │              │      │              │    │
-│  │  Port: 7687  │      │  Port: 7688  │    │
-│  │  Lab:  3000  │      │  HTTP: 7474  │    │
-│  └──────────────┘      └──────────────┘    │
-│                                             │
-│  ┌──────────────────────────────────────┐  │
-│  │           Ollama                     │  │
-│  │                                      │  │
-│  │  API: 11434                          │  │
-│  │  Models: nomic-embed-text, etc.     │  │
-│  └──────────────────────────────────────┘  │
-│                                             │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│              KG-RAG Cluster (kgrag_net)                 │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌──────────────┐      ┌──────────────┐                │
+│  │  MemGraph    │      │    Neo4j     │                │
+│  │              │      │              │                │
+│  │ Bolt:  7687  │      │ Bolt:  7688  │                │
+│  │ HTTP:  7444  │      │ HTTP:  7474  │                │
+│  │ Lab:   3000  │      │              │                │
+│  └──────────────┘      └──────────────┘                │
+│                                                         │
+│  ┌──────────────┐      ┌──────────────────────────┐    │
+│  │  Weaviate    │      │        Ollama            │    │
+│  │              │◄─────│                          │    │
+│  │ HTTP:  8080  │      │  API: 11434              │    │
+│  │ gRPC: 50051  │      │  Models: nomic-embed     │    │
+│  └──────────────┘      └──────────────────────────┘    │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ## Use Cases
@@ -394,11 +476,19 @@ docker exec ollama ollama pull snowflake-arctic-embed
 - Stream processing with graph analytics
 - High-performance graph queries
 - In-memory graph computations
+- HTTP API for programmatic access
+
+### Vector Search with Weaviate
+- Scalable vector storage and search
+- Native Ollama integration for embeddings
+- Hybrid search (vector + keyword)
+- GraphQL and REST APIs
 
 ### Local LLM Embeddings with Ollama
 - Privacy-preserving embeddings
 - No API costs
 - Fast local inference
+- GPU acceleration support
 
 ## Resources
 
@@ -417,7 +507,13 @@ docker exec ollama ollama pull snowflake-arctic-embed
 - [Ollama API Reference](https://github.com/ollama/ollama/blob/main/docs/api.md)
 - [Available Models](https://ollama.com/library)
 
+### Weaviate
+- [Weaviate Documentation](https://weaviate.io/developers/weaviate)
+- [Weaviate Python Client](https://weaviate.io/developers/weaviate/client-libraries/python)
+- [Weaviate Ollama Integration](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules/text2vec-ollama)
+
 ### RAG & LangChain
 - [LangChain Documentation](https://python.langchain.com/docs/get_started/introduction)
 - [LangChain Neo4j Integration](https://python.langchain.com/docs/integrations/graphs/neo4j_cypher)
+- [LangChain Weaviate Integration](https://python.langchain.com/docs/integrations/vectorstores/weaviate)
 - [Building RAG Systems](https://python.langchain.com/docs/use_cases/question_answering/)
