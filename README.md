@@ -5,7 +5,7 @@ Local development environments for building Retrieval-Augmented Generation syste
 ## Overview
 
 Complete development stack featuring:
-- **MemGraph** and **Neo4j** for Knowledge Graph RAG
+- **Neo4j** for Knowledge Graph RAG
 - **Weaviate** for vector search
 - **Ollama** for local LLM inference
 - Jupyter notebooks for experimentation
@@ -18,22 +18,27 @@ git clone <repository-url>
 cd RAG-Systems
 uv sync  # or: pip install -e .
 
-# Start all services
+# Start services (choose one):
 cd docker
-make quickstart
+make quickstart      # KG-RAG stack (Neo4j, Ollama)
+make quickstart-rag  # Vector RAG stack (Weaviate, Ollama)
+make up-all          # All services
 ```
 
 ## Services
 
-Complete local development stack with graph databases and local LLMs.
+Complete local development stack with graph databases and local LLMs, organized by profiles:
 
-**Available Services:**
-- **MemGraph** (bolt://localhost:7687, UI: http://localhost:3000)
-- **Neo4j** (bolt://localhost:7688, UI: http://localhost:7474, auth: neo4j/testpass)
+**KG-RAG Profile** (Knowledge Graph RAG):
+- **Neo4j** (bolt://localhost:7687, UI: http://localhost:7474, auth: neo4j/testpass)
+- **Ollama** (http://localhost:11434)
+
+**RAG Profile** (Vector RAG):
 - **Weaviate** (http://localhost:8080)
 - **Ollama** (http://localhost:11434)
 
 **Features:**
+- Profile-based service selection
 - Docker Compose orchestration
 - Pre-configured APOC plugins for Neo4j
 - GPU acceleration support
@@ -47,7 +52,12 @@ See [docker/README.md](docker/README.md) for detailed documentation.
 ```bash
 cd docker
 
-make up          # Start all services
+# Start services by profile
+make up-kg-rag   # Knowledge Graph RAG (Neo4j, Ollama)
+make up-rag      # Vector RAG (Weaviate, Ollama)
+make up-all      # All services
+
+# Management
 make down        # Stop all services
 make status      # Check status
 make logs        # View logs
@@ -64,12 +74,10 @@ RAG-Systems/
 │   ├── README.md
 │   ├── models/          # Ollama models directory
 │   └── volumes/         # Persistent data
-│       ├── memgraph/
 │       ├── neo4j/
 │       ├── ollama/
 │       └── weaviate/
 ├── notebooks/           # Jupyter notebooks for experimentation
-│   ├── Quick-Intro_MemGraph.ipynb
 │   └── Quick-Intro_Neo4j.ipynb
 ├── docs/                # Additional documentation
 ├── pyproject.toml       # Python dependencies
@@ -79,7 +87,6 @@ RAG-Systems/
 ## Resources
 
 - [Docker Setup Documentation](docker/README.md)
-- [MemGraph Docs](https://memgraph.com/docs)
 - [Neo4j Docs](https://neo4j.com/docs/)
 - [Weaviate Docs](https://weaviate.io/developers/weaviate)
 - [Ollama Docs](https://github.com/ollama/ollama)
