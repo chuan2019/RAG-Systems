@@ -1,33 +1,11 @@
 services:
-  memgraph:
-    image: memgraph/memgraph-platform:latest
-    container_name: memgraph-single
-    ports:
-      - "7687:7687"  # Bolt
-      - "7444:7444"  # HTTP
-      - "3000:3000"  # Memgraph Lab (web UI)
-    volumes:
-      - ./volumes/memgraph/lib:/var/lib/memgraph
-      - ./volumes/memgraph/log:/var/log/memgraph
-      - ./volumes/memgraph/etc:/etc/memgraph
-    environment:
-      - MEMGRAPH="--log-level=TRACE"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "mg_console --query 'RETURN 1' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - kgrag_net
-
   neo4j:
     image: neo4j:5.18.0
     container_name: neo4j-single
+    profiles: ["kg-rag"]
     ports:
       - 7474:7474  # HTTP
-      - 7688:7687  # Bolt
+      - 7687:7687  # Bolt
     environment:
       NEO4J_AUTH: neo4j/testpass
       NEO4J_dbms_memory_pagecache_size: 1G
@@ -53,6 +31,7 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
+    profiles: ["kg-rag", "rag"]
     ports:
       - "11434:11434"
     volumes:
@@ -62,7 +41,7 @@ services:
       - OLLAMA_HOST=0.0.0.0:11434
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -81,6 +60,7 @@ services:
   weaviate:
     image: cr.weaviate.io/semitechnologies/weaviate:1.27.2
     container_name: weaviate
+    profiles: ["rag"]
     ports:
       - "8080:8080"  # Weaviate API
       - "50051:50051"  # gRPC

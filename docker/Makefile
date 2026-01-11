@@ -1,26 +1,60 @@
-.PHONY: up down logs restart status clean quickstart help
-.PHONY: up-memgraph down-memgraph logs-memgraph shell-memgraph
+.PHONY: up up-kg-rag up-rag up-all down logs restart status clean quickstart quickstart-rag help
 .PHONY: up-neo4j down-neo4j logs-neo4j shell-neo4j
 .PHONY: up-ollama down-ollama logs-ollama shell-ollama pull-models pull-nomic pull-mxbai pull-minilm list-models
+.PHONY: up-weaviate down-weaviate logs-weaviate shell-weaviate
 
 # =============================================================================
 # Main Commands
 # =============================================================================
 
-# Start all services (MemGraph, Neo4j, Ollama)
+# Start all services (requires profile selection)
 up:
-	@echo "Starting KG-RAG cluster (MemGraph, Neo4j, Ollama)..."
-	docker-compose up -d --build
+	@echo "ERROR: Please specify a profile:"
+	@echo "  make up-kg-rag   - Start Knowledge Graph RAG stack (Neo4j, Ollama)"
+	@echo "  make up-rag      - Start Vector RAG stack (Weaviate, Ollama)"
+	@echo "  make up-all      - Start all services"
+	@exit 1
+
+# Start KG-RAG profile (Neo4j, Ollama)
+up-kg-rag:
+	@echo "Starting KG-RAG profile (Neo4j, Ollama)..."
+	docker-compose --profile kg-rag up -d --build
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	@echo ""
-	@echo "======================== Cluster Ready ========================"
-	@echo "MemGraph Lab:  http://localhost:3000"
-	@echo "MemGraph Bolt: bolt://localhost:7687"
+	@echo "======================== KG-RAG Profile Ready ========================"
 	@echo "Neo4j Browser: http://localhost:7474 (user: neo4j, pass: testpass)"
-	@echo "Neo4j Bolt:    bolt://localhost:7688"
+	@echo "Neo4j Bolt:    bolt://localhost:7687"
 	@echo "Ollama API:    http://localhost:11434"
-	@echo "==============================================================="
+	@echo "======================================================================"
+
+# Start RAG profile (Weaviate, Ollama)
+up-rag:
+	@echo "Starting RAG profile (Weaviate, Ollama)..."
+	docker-compose --profile rag up -d --build
+	@echo "Waiting for services to be ready..."
+	@sleep 10
+	@echo ""
+	@echo "======================== RAG Profile Ready ========================"
+	@echo "Weaviate API:  http://localhost:8080"
+	@echo "Weaviate gRPC: localhost:50051"
+	@echo "Ollama API:    http://localhost:11434"
+	@echo "==================================================================="
+
+# Start all services (both profiles)
+up-all:
+	@echo "Starting all services (kg-rag + rag profiles)..."
+	docker-compose --profile kg-rag --profile rag up -d --build
+	@echo "Waiting for services to be ready..."
+	@sleep 10
+	@echo ""
+	@echo "======================== All Services Ready ========================"
+	@echo "Neo4j Browser: http://localhost:7474 (user: neo4j, pass: testpass)"
+	@echo "Neo4j Bolt:    bolt://localhost:7687"
+	@echo "Weaviate API:  http://localhost:8080"
+	@echo "Weaviate gRPC: localhost:50051"
+	@echo "Ollama API:    http://localhost:11434"
+	@echo "====================================================================="
 
 # Stop all services
 down:
@@ -59,34 +93,45 @@ clean:
 		echo "Cleaned successfully"; \
 	fi
 
-# Quick start - start cluster and pull embedding model
-quickstart: up
+# Quick start - start KG-RAG cluster and pull embedding model
+quickstart: up-kg-rag
 	@echo "Waiting for Ollama to fully start..."
 	@sleep 8
 	@$(MAKE) pull-nomic
 	@echo ""
-	@echo "Quickstart complete! All services running with nomic-embed-text model."
+	@echo "Quickstart complete! KG-RAG services running with nomic-embed-text model."
+
+# Quick start for RAG profile
+quickstart-rag: up-rag
+	@echo "Waiting for Ollama to fully start..."
+	@sleep 8
+	@$(MAKE) pull-nomic
+	@echo ""
+	@echo "Quickstart complete! RAG services running with nomic-embed-text model."
 
 # Display help
 help:
 	@echo "KG-RAG Cluster Management"
 	@echo "========================="
 	@echo ""
+	@echo "Profile Commands:"
+	@echo "  make up-kg-rag       - Start KG-RAG profile (Neo4j, Ollama)"
+	@echo "  make up-rag          - Start RAG profile (Weaviate, Ollama)"
+	@echo "  make up-all          - Start all services (both profiles)"
+	@echo "  make quickstart      - Start KG-RAG + pull nomic model"
+	@echo "  make quickstart-rag  - Start RAG + pull nomic model"
+	@echo ""
 	@echo "Main Commands:"
-	@echo "  make up              - Start all services"
 	@echo "  make down            - Stop all services"
 	@echo "  make restart         - Restart all services"
 	@echo "  make status          - Show status of all services"
 	@echo "  make logs            - View logs (all services)"
 	@echo "  make logs SERVICE=<name> - View logs for specific service"
 	@echo "  make clean           - Remove all containers and volumes"
-	@echo "  make quickstart      - Start cluster + pull nomic model"
 	@echo ""
-	@echo "MemGraph Commands:"
-	@echo "  make up-memgraph     - Start only MemGraph"
-	@echo "  make down-memgraph   - Stop only MemGraph"
-	@echo "  make logs-memgraph   - View MemGraph logs"
-	@echo "  make shell-memgraph  - Open MemGraph shell"
+	@echo "Note: Services are organized by profiles:"
+	@echo "  kg-rag: Neo4j, Ollama"
+	@echo "  rag:    Weaviate, Ollama"
 	@echo ""
 	@echo "Neo4j Commands:"
 	@echo "  make up-neo4j        - Start only Neo4j"
@@ -106,32 +151,12 @@ help:
 	@echo "  make list-models     - List installed models"
 
 # =============================================================================
-# MemGraph Commands
-# =============================================================================
-
-up-memgraph:
-	@echo "Starting MemGraph..."
-	docker-compose up -d memgraph
-	@echo "MemGraph Lab: http://localhost:3000"
-	@echo "MemGraph Bolt: bolt://localhost:7687"
-
-down-memgraph:
-	@echo "Stopping MemGraph..."
-	docker-compose stop memgraph
-
-logs-memgraph:
-	docker-compose logs -f memgraph
-
-shell-memgraph:
-	docker exec -it memgraph-single mgconsole
-
-# =============================================================================
 # Neo4j Commands
 # =============================================================================
 
 up-neo4j:
 	@echo "Starting Neo4j..."
-	docker-compose up -d neo4j
+	docker-compose --profile kg-rag up -d neo4j
 	@echo "Neo4j Browser: http://localhost:7474"
 	@echo "Neo4j Bolt: bolt://localhost:7688"
 	@echo "User: neo4j, Password: testpass"
@@ -152,8 +177,9 @@ shell-neo4j:
 
 up-ollama:
 	@echo "Starting Ollama..."
-	docker-compose up -d ollama
+	docker-compose --profile kg-rag up -d ollama
 	@echo "Ollama API: http://localhost:11434"
+	@echo "Note: Ollama is available in both kg-rag and rag profiles"
 
 down-ollama:
 	@echo "Stopping Ollama..."
@@ -188,3 +214,23 @@ pull-minilm:
 list-models:
 	@echo "Available models in Ollama:"
 	docker exec ollama ollama list
+
+# =============================================================================
+# Weaviate Commands
+# =============================================================================
+
+up-weaviate:
+	@echo "Starting Weaviate (with Ollama dependency)..."
+	docker-compose --profile rag up -d weaviate
+	@echo "Weaviate API: http://localhost:8080"
+	@echo "Weaviate gRPC: localhost:50051"
+
+down-weaviate:
+	@echo "Stopping Weaviate..."
+	docker-compose stop weaviate
+
+logs-weaviate:
+	docker-compose logs -f weaviate
+
+shell-weaviate:
+	docker exec -it weaviate /bin/sh

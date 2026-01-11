@@ -1,20 +1,33 @@
 # KG-RAG Cluster Docker Setup
 
 This directory contains Docker Compose configuration for running a complete Knowledge Graph RAG system with:
-- **MemGraph** - In-memory graph database with Lab UI
 - **Neo4j** - Popular graph database with APOC support
 - **Weaviate** - Vector database with Ollama integration
 - **Ollama** - Local LLM runtime with embedding models
 
+## Service Profiles
+
+Services are organized into profiles for selective startup:
+
+- **kg-rag** profile: Neo4j, Ollama (Knowledge Graph RAG)
+- **rag** profile: Weaviate, Ollama (Vector RAG)
+- Ollama is shared between both profiles
+
 ## Quick Start
 
 ```bash
-# Start all services and pull embedding model
+# Option 1: Start KG-RAG stack (recommended for getting started)
 make quickstart
 
-# Or manually:
-make up              # Start all services
-make pull-nomic      # Pull nomic-embed-text model
+# Option 2: Start Vector RAG stack
+make quickstart-rag
+
+# Option 3: Start everything
+make up-all
+
+# Or start profiles manually:
+make up-kg-rag       # Knowledge Graph RAG only
+make up-rag          # Vector RAG only
 ```
 
 ## Services Access
@@ -23,11 +36,8 @@ After starting with `make up`:
 
 | Service | Type | URL | Credentials |
 |---------|------|-----|-------------|
-| **MemGraph Lab** | Web UI | http://localhost:3000 | - |
-| **MemGraph Bolt** | Protocol | bolt://localhost:7687 | - |
-| **MemGraph HTTP** | REST API | http://localhost:7444 | - |
 | **Neo4j Browser** | Web UI | http://localhost:7474 | neo4j/testpass |
-| **Neo4j Bolt** | Protocol | bolt://localhost:7688 | neo4j/testpass |
+| **Neo4j Bolt** | Protocol | bolt://localhost:7687 | neo4j/testpass |
 | **Weaviate API** | REST API | http://localhost:8080 | - |
 | **Weaviate gRPC** | gRPC | localhost:50051 | - |
 | **Ollama API** | REST API | http://localhost:11434 | - |
@@ -36,25 +46,46 @@ After starting with `make up`:
 
 Run `make help` to see all commands. Key commands:
 
+### Profile Commands
+
 ```bash
-make up              # Start all services
+make up-kg-rag       # Start KG-RAG profile (Neo4j, Ollama)
+make up-rag          # Start RAG profile (Weaviate, Ollama)
+make up-all          # Start all services (both profiles)
+make quickstart      # Start KG-RAG + pull nomic model
+make quickstart-rag  # Start RAG + pull nomic model
+```
+
+### Management Commands
+
+```bash
 make down            # Stop all services
 make status          # Check all services status
 make logs            # View all logs (or make logs SERVICE=weaviate)
 make restart         # Restart all services
 make clean           # Remove all containers and volumes
-make quickstart      # Start cluster + pull nomic model
+```
+
+### Using Docker Compose Directly
+
+You can also use docker-compose commands directly with profiles:
+
+```bash
+# Start specific profile
+docker-compose --profile kg-rag up -d
+docker-compose --profile rag up -d
+
+# Start both profiles
+docker-compose --profile kg-rag --profile rag up -d
+
+# Stop all services
+docker-compose down
+
+# View logs
+docker-compose logs -f
 ```
 
 ### Service-Specific Commands
-
-**MemGraph:**
-```bash
-make up-memgraph     # Start only MemGraph
-make down-memgraph   # Stop only MemGraph
-make logs-memgraph   # View MemGraph logs
-make shell-memgraph  # Open MemGraph console (mgconsole)
-```
 
 **Neo4j:**
 ```bash
@@ -66,7 +97,7 @@ make shell-neo4j     # Open Neo4j shell (cypher-shell)
 
 **Ollama:**
 ```bash
-make up-ollama       # Start only Ollama
+make up-ollama       # Start only Ollama (uses kg-rag profile)
 make down-ollama     # Stop only Ollama
 make logs-ollama     # View Ollama logs
 make shell-ollama    # Open Ollama shell
@@ -75,11 +106,13 @@ make list-models     # List installed models
 
 **Weaviate:**
 ```bash
-make up-weaviate     # Start only Weaviate
+make up-weaviate     # Start Weaviate + Ollama (uses rag profile)
 make down-weaviate   # Stop only Weaviate
 make logs-weaviate   # View Weaviate logs
 make shell-weaviate  # Open Weaviate shell
 ```
+
+**Note:** Service-specific commands automatically use the appropriate profile.
 
 ## Ollama Embedding Models
 
@@ -105,31 +138,13 @@ make list-models     # List installed models
 
 ### Connecting to Graph Databases
 
-#### MemGraph with Python
-
-```python
-from neo4j import GraphDatabase
-
-# MemGraph uses Neo4j protocol (Bolt)
-driver = GraphDatabase.driver(
-    "bolt://localhost:7687",
-    auth=None  # MemGraph doesn't require auth by default
-)
-
-with driver.session() as session:
-    result = session.run("MATCH (n) RETURN count(n) as count")
-    print(result.single()["count"])
-
-driver.close()
-```
-
 #### Neo4j with Python
 
 ```python
 from neo4j import GraphDatabase
 
 driver = GraphDatabase.driver(
-    "bolt://localhost:7688",
+    "bolt://localhost:7687",
     auth=("neo4j", "testpass")
 )
 
@@ -146,7 +161,7 @@ driver.close()
 from langchain_community.graphs import Neo4jGraph
 
 graph = Neo4jGraph(
-    url="bolt://localhost:7688",
+    url="bolt://localhost:7687",
     username="neo4j",
     password="testpass"
 )
@@ -277,7 +292,7 @@ from langchain_community.vectorstores import Neo4jVector
 
 # Initialize graph and embeddings
 graph = Neo4jGraph(
-    url="bolt://localhost:7688",
+    url="bolt://localhost:7687",
     username="neo4j",
     password="testpass"
 )
@@ -308,7 +323,6 @@ cp .env.example .env
 ```
 
 Key configurations:
-- **MemGraph**: Ports (7687 Bolt, 7444 HTTP, 3000 Lab), log level
 - **Neo4j**: Authentication, memory settings, plugins
 - **Weaviate**: Ports (8080 HTTP, 50051 gRPC), Ollama integration
 - **Ollama**: Host, port, GPU settings
@@ -339,12 +353,7 @@ Requires: `nvidia-docker` runtime installed.
 
 ### Neo4j
 - **Browser**: `http://localhost:7474`
-- **Bolt Protocol**: `bolt://localhost:7688`
-
-### MemGraph
-- **Lab UI**: `http://localhost:3000`
 - **Bolt Protocol**: `bolt://localhost:7687`
-- **HTTP API**: `http://localhost:7444`
 
 ### Weaviate
 - **REST API**: `http://localhost:8080`
@@ -366,9 +375,6 @@ curl http://localhost:11434/
 # Neo4j
 curl http://localhost:7474/
 
-# MemGraph
-curl http://localhost:3000/
-
 # Weaviate
 curl http://localhost:8080/v1/.well-known/ready
 ```
@@ -377,7 +383,6 @@ curl http://localhost:8080/v1/.well-known/ready
 ```bash
 make logs                # All services
 make logs SERVICE=neo4j  # Specific service
-make logs-memgraph       # MemGraph only
 make logs-neo4j          # Neo4j only
 make logs-ollama         # Ollama only
 ```
@@ -396,10 +401,6 @@ make up
 
 ### Common Issues
 
-**MemGraph Lab not loading:**
-- Check if port 3000 is available: `lsof -i :3000`
-- Check logs: `make logs-memgraph`
-
 **Neo4j authentication fails:**
 - Default credentials: `neo4j/testpass`
 - Change in [.env.example](.env.example) if needed
@@ -412,7 +413,6 @@ make up
 
 All data is stored in local volumes:
 
-- **MemGraph**: `./volumes/memgraph/lib`, `./volumes/memgraph/log`, `./volumes/memgraph/etc`
 - **Neo4j**: `./volumes/neo4j/data`
 - **Weaviate**: `./volumes/weaviate`
 - **Ollama**: `./volumes/ollama`
@@ -420,7 +420,6 @@ All data is stored in local volumes:
 ### Backup volumes
 ```bash
 # Backup all data directories
-tar czf memgraph_backup.tar.gz volumes/memgraph/
 tar czf neo4j_backup.tar.gz volumes/neo4j/
 tar czf weaviate_backup.tar.gz volumes/weaviate/
 tar czf ollama_backup.tar.gz volumes/ollama/
@@ -447,13 +446,12 @@ docker exec ollama ollama pull snowflake-arctic-embed
 │              KG-RAG Cluster (kgrag_net)                 │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
-│  ┌──────────────┐      ┌──────────────┐                │
-│  │  MemGraph    │      │    Neo4j     │                │
-│  │              │      │              │                │
-│  │ Bolt:  7687  │      │ Bolt:  7688  │                │
-│  │ HTTP:  7444  │      │ HTTP:  7474  │                │
-│  │ Lab:   3000  │      │              │                │
-│  └──────────────┘      └──────────────┘                │
+│  ┌──────────────────────────┐                          │
+│  │         Neo4j            │                          │
+│  │                          │                          │
+│  │ Bolt:  7687              │                          │
+│  │ HTTP:  7474              │                          │
+│  └──────────────────────────┘                          │
 │                                                         │
 │  ┌──────────────┐      ┌──────────────────────────┐    │
 │  │  Weaviate    │      │        Ollama            │    │
@@ -471,12 +469,7 @@ docker exec ollama ollama pull snowflake-arctic-embed
 - Store documents as graph structures
 - Semantic search with vector embeddings
 - Graph-based retrieval augmentation
-
-### Real-time Graph Analytics with MemGraph
-- Stream processing with graph analytics
-- High-performance graph queries
-- In-memory graph computations
-- HTTP API for programmatic access
+- APOC procedures for advanced graph operations
 
 ### Vector Search with Weaviate
 - Scalable vector storage and search
@@ -491,11 +484,6 @@ docker exec ollama ollama pull snowflake-arctic-embed
 - GPU acceleration support
 
 ## Resources
-
-### MemGraph
-- [MemGraph Documentation](https://memgraph.com/docs)
-- [MemGraph Lab Guide](https://memgraph.com/docs/memgraph-lab)
-- [Cypher Query Language](https://memgraph.com/docs/cypher-manual)
 
 ### Neo4j
 - [Neo4j Documentation](https://neo4j.com/docs/)
