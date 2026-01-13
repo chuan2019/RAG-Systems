@@ -1,8 +1,26 @@
 services:
+  memgraph:
+    image: memgraph/memgraph-platform:latest
+    container_name: memgraph
+    profiles: ["kg-rag-memgraph"]
+    ports:
+      - "7687:7687" # Bolt protocol
+      - "3000:3000" # Memgraph Lab (Web UI)
+      - "7444:7444" # Monitoring
+    volumes:
+      - mg_lib:/var/lib/memgraph
+      - mg_log:/var/log/memgraph
+      - mg_etc:/etc/memgraph
+    environment:
+      - MEMGRAPH="--log-level=TRACE"
+    restart: unless-stopped
+    networks:
+      - kgrag_net
+
   neo4j:
     image: neo4j:5.26.19
     container_name: neo4j-single
-    profiles: ["kg-rag"]
+    profiles: ["kg-rag-neo4j"]
     ports:
       - 7474:7474  # HTTP
       - 7687:7687  # Bolt
@@ -31,7 +49,10 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
-    profiles: ["kg-rag", "rag"]
+    profiles:
+     - "kg-rag-neo4j"
+     - "kg-rag-memgraph"
+     - "rag"
     ports:
       - "11434:11434"
     volumes:
@@ -91,3 +112,8 @@ services:
 networks:
   kgrag_net:
     driver: bridge
+
+volumes:
+  mg_lib:
+  mg_log:
+  mg_etc:
