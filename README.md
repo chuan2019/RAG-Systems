@@ -6,6 +6,7 @@ Local development environments for building Retrieval-Augmented Generation syste
 
 Complete development stack featuring:
 - **Neo4j** for Knowledge Graph RAG
+- **MemGraph** for high-performance graph processing
 - **Weaviate** for vector search
 - **Ollama** for local LLM inference
 - Jupyter notebooks for experimentation
@@ -20,17 +21,22 @@ uv sync  # or: pip install -e .
 
 # Start services (choose one):
 cd docker
-make quickstart      # KG-RAG stack (Neo4j, Ollama)
-make quickstart-rag  # Vector RAG stack (Weaviate, Ollama)
-make up-all          # All services
+make quickstart          # KG-RAG stack (Neo4j, Ollama)
+make quickstart-memgraph # KG-RAG stack (MemGraph, Ollama)
+make quickstart-rag      # Vector RAG stack (Weaviate, Ollama)
+make up-all              # All services
 ```
 
 ## Services
 
 Complete local development stack with graph databases and local LLMs, organized by profiles:
 
-**KG-RAG Profile** (Knowledge Graph RAG):
+**KG-RAG Neo4j Profile** (Knowledge Graph RAG with Neo4j):
 - **Neo4j** (bolt://localhost:7687, UI: http://localhost:7474, auth: neo4j/testpass)
+- **Ollama** (http://localhost:11434)
+
+**KG-RAG MemGraph Profile** (Knowledge Graph RAG with MemGraph):
+- **MemGraph** (bolt://localhost:7687, Lab: http://localhost:3000)
 - **Ollama** (http://localhost:11434)
 
 **RAG Profile** (Vector RAG):
@@ -41,6 +47,7 @@ Complete local development stack with graph databases and local LLMs, organized 
 - Profile-based service selection
 - Docker Compose orchestration
 - Pre-configured APOC plugins for Neo4j
+- MemGraph Lab for visual graph exploration
 - GPU acceleration support
 - Embedding models included
 - Makefile commands for easy management
@@ -53,9 +60,10 @@ See [docker/README.md](docker/README.md) for detailed documentation.
 cd docker
 
 # Start services by profile
-make up-kg-rag   # Knowledge Graph RAG (Neo4j, Ollama)
-make up-rag      # Vector RAG (Weaviate, Ollama)
-make up-all      # All services
+make up-kg-rag           # Knowledge Graph RAG (Neo4j, Ollama)
+make up-kg-rag-memgraph  # Knowledge Graph RAG (MemGraph, Ollama)
+make up-rag              # Vector RAG (Weaviate, Ollama)
+make up-all              # All services
 
 # Management
 make down        # Stop all services
@@ -88,6 +96,7 @@ RAG-Systems/
 
 - [Docker Setup Documentation](docker/README.md)
 - [Neo4j Docs](https://neo4j.com/docs/)
+- [MemGraph Docs](https://memgraph.com/docs)
 - [Weaviate Docs](https://weaviate.io/developers/weaviate)
 - [Ollama Docs](https://github.com/ollama/ollama)
 - [LangChain](https://python.langchain.com/docs/get_started/introduction)
